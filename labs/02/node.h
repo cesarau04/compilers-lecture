@@ -7,7 +7,8 @@ struct Node
   char value;
   size_t line;
   size_t column;
+  char* data;
 };
 
 // Creates a node
-struct Node *createnode(char value, size_t line, size_t column);
+struct Node *createnode(char value, size_t line, size_t column, char* content);

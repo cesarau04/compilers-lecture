@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "stack.h"
 
 size_t errfound = 0;
@@ -39,7 +40,7 @@ int main(int argc, char *argv[])
     struct Node* unusednode = pop(mystack);
     while (unusednode->below != NULL){
       printf("\nerror: no closing at (%ld, %ld)\n", unusednode->line, unusednode->column);
-      printf("%s\n",line);
+      printf("%s\n", unusednode->data);
       for (size_t i = 0; i < unusednode->column; i++)
       {
        printf(" ");
@@ -48,6 +49,7 @@ int main(int argc, char *argv[])
       unusednode = unusednode->below;
       errfound++;
     }
+    free(unusednode);
   }
 
   if (!errfound)
@@ -104,7 +106,7 @@ void checkbalance(char *str, size_t linenum)
   {
     if (c == '(' || c == '[' || c == '{')
     {
-      struct Node *currentnode = createnode(c, linenum, i - 1);
+      struct Node *currentnode = createnode(c, linenum, i - 1, str);
       push(mystack, currentnode);
     }
     else if (c == ')')
@@ -135,6 +137,7 @@ void checkbalance(char *str, size_t linenum)
         printf("^\n");
         errfound++;
       }
+      free(lastnode);
     }
     else if (c == ']')
     {
@@ -164,6 +167,7 @@ void checkbalance(char *str, size_t linenum)
         printf("^\n");
         errfound++;
       }
+      free(lastnode);
     }
     else if (c == '}')
     {
@@ -193,6 +197,7 @@ void checkbalance(char *str, size_t linenum)
         printf("^\n");
         errfound++;
       }
+      free(lastnode);
     }
   }
 }

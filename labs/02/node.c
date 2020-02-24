@@ -1,7 +1,8 @@
 #include "node.h"
 #include <stdlib.h>
+#include <string.h>
 
-struct Node *createnode(char value, size_t line, size_t column)
+struct Node *createnode(char value, size_t line, size_t column, char* content)
 {
   struct Node *newnode = malloc(sizeof(struct Node));
   if (newnode == NULL)
@@ -16,5 +17,6 @@ struct Node *createnode(char value, size_t line, size_t column)
   newnode->value = value;
   newnode->line = line;
   newnode->column = column;
+  newnode->data = strdup(content);
   return newnode;
 }
