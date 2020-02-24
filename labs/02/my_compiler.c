@@ -1,230 +1,198 @@
 #include <stdio.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
+#include "stack.h"
 
-void rmcomments(char* str, size_t linenum);
-void checkparentesis(char* str, size_t linenum);
-void checkbrackets(char* str, size_t linenum);
-void checkbraces(char* str, size_t linenum);
+size_t errfound = 0;
+struct Stack *mystack;
 
-int errfound = 0;
+void rmcomments(char *str, size_t linenum);
+void checkbalance(char *str, size_t linenum);
 
-size_t parentesis_in_count = 0;
-size_t brackets_in_count = 0;
-size_t braces_in_count = 0;
-
-size_t parentesis_out_count = 0;
-size_t brackets_out_count = 0;
-size_t braces_out_count = 0;
-
-int lastparentesis_in_loc = -1;
-int lastbracket_in_loc = -1;
-int lastbrace_in_loc = -1;
-
-int lastparentesis_out_loc = -1;
-int lastbracket_out_loc = -1;
-int lastbrace_out_loc = -1;
-
-int lastparentesis_numline = -1;
-int lastbracket_numline = -1;
-int lastbrace_numline = -1;
-
-char lastparentesisline[256];
-char lastbracketline[256];
-char lastbraceline[256];
-
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    if (argc != 2) {
-        printf("Error: invalid argument\n");
-        return 1;
-    }
-    
-    char const* const fileName = argv[1];
-    FILE* file = fopen(fileName, "r");
-    
-    if (file == NULL){
-        printf("Error: cannot open file\n");
-        return 1;
-    }
+  if (argc != 2)
+  {
+    printf("Error: invalid argument\n");
+    return 1;
+  }
 
-    char line[256];
+  char const *const fileName = argv[1];
+  FILE *file = fopen(fileName, "r");
 
-    size_t linenum = 1;
-    while (fgets(line, sizeof(line), file)) {
-        rmcomments(line, linenum);
-        checkparentesis(line, linenum);
-        checkbrackets(line, linenum);
-        checkbraces(line, linenum);
-        linenum++;
+  if (file == NULL)
+  {
+    printf("Error: cannot open file\n");
+    return 1;
+  }
+
+  char line[256];
+  size_t linenum = 1;
+  mystack = createstack(NULL);
+
+  while (fgets(line, sizeof(line), file))
+  {
+    rmcomments(line, linenum);
+    checkbalance(line, linenum);
+    linenum++;
+  }
+
+  if (!isempty(mystack)){
+    struct Node* unusednode = pop(mystack);
+    while (unusednode->below != NULL){
+      printf("\nerror: no closing at (%ld, %ld)\n", unusednode->line, unusednode->column);
+      printf("%s\n",line);
+      for (size_t i = 0; i < unusednode->column; i++)
+      {
+       printf(" ");
+      }
+      printf("^\n");
+      unusednode = unusednode->below;
+      errfound++;
     }
+  }
 
-    if (parentesis_in_count != parentesis_out_count){
-        printf("Error: no matched parentesis (%d,%d)\n%s\n", lastparentesis_numline, lastparentesis_in_loc,lastparentesisline);
-        for (size_t i = 0; i < lastparentesis_in_loc; i++)
+  if (!errfound)
+  {
+    printf("\nNo errors found!\n");
+  }
+  else
+  {
+    printf("\nTotal errors found: %ld\n", errfound);
+  }
+
+  fclose(file);
+  return 0;
+}
+
+void rmcomments(char *str, size_t linenum)
+{
+  size_t i = 0;
+  size_t qoutecounter = 0;
+  size_t lastquotecol = 0;
+  char c;
+  char c_prev;
+
+  while ((c = str[i++]) != '\0')
+  {
+    if (c == '"')
+    {
+      qoutecounter++;
+      lastquotecol = i - 1;
+    }
+    if (qoutecounter % 2 != 0)
+    { // if quote open
+      continue;
+    }
+    else
+    {
+      if (c == '/' && c_prev == '/')
+      {
+        str[i - 2] = '\n';
+        str[i - 1] = '\0';
+        break;
+      }
+      c_prev = c;
+    }
+  }
+}
+
+void checkbalance(char *str, size_t linenum)
+{
+  size_t i = 0;
+  char c;
+
+  while ((c = str[i++]) != '\0')
+  {
+    if (c == '(' || c == '[' || c == '{')
+    {
+      struct Node *currentnode = createnode(c, linenum, i - 1);
+      push(mystack, currentnode);
+    }
+    else if (c == ')')
+    {
+      struct Node *lastnode = pop(mystack);
+      if (lastnode != NULL)
+      {
+        if (lastnode->value != '(')
         {
+          printf("error: no closing parentesis at (%ld, %ld)\n", linenum, i - 1);
+          printf("%s\n", str);
+          for (size_t j = 0; j < i-1; j++)
+          {
             printf(" ");
+          }
+          printf("^\n");
+          errfound++;
         }
-        printf("^\n");
-        errfound = 1;
-    }
-    if (brackets_in_count != brackets_out_count){
-        printf("Error: no matched brackets (%d,%d)\n%s\n", lastbracket_numline, lastbracket_in_loc, lastbracketline);
-        for (size_t i = 0; i < lastbracket_in_loc; i++)
+      }
+      else
+      {
+        printf("error: no opening parentesis at (%ld, %ld)\n", linenum, i - 1);
+        printf("%s\n", str);
+        for (size_t j = 0; j < i-1; j++)
         {
-            printf(" ");
+          printf(" ");
         }
         printf("^\n");
-        errfound = 1;
+        errfound++;
+      }
     }
-    if (braces_in_count != braces_out_count){
-        printf("Error: no matched braces (%d,%d)\n%s\n", lastbrace_numline, lastbrace_in_loc, lastbraceline);
-        for (size_t i = 0; i < lastbrace_in_loc; i++)
+    else if (c == ']')
+    {
+      struct Node *lastnode = pop(mystack);
+      if (lastnode != NULL)
+      {
+        if (lastnode->value != '[')
         {
+          printf("error: no closing bracket at (%ld, %ld)\n", linenum, i - 1);
+          printf("%s\n", str);
+          for (size_t j = 0; j < i-1; j++)
+          {
             printf(" ");
+          }
+          printf("^\n");
+          errfound++;
+        }
+      }
+      else
+      {
+        printf("error: no opening bracket at (%ld, %ld)\n", linenum, i - 1);
+        printf("%s\n", str);
+        for (size_t j = 0; j < i-1; j++)
+        {
+          printf(" ");
         }
         printf("^\n");
-        errfound = 1;
+        errfound++;
+      }
     }
-
-    if (!errfound){
-        printf("No errors found!\n");
-    }
-    
-    fclose(file);
-    return 0;
-}
-
-
-void rmcomments(char* str, size_t linenum){
-    size_t i = 0;
-    size_t qoutecounter = 0;
-    size_t lastquotecol = 0;
-    char c;
-    char c_prev;
-    char cpline[256];
-
-    strcpy(cpline, str);
-
-    while ((c = str[i++]) != '\0'){
-        if (c == '"'){
-            qoutecounter++;
-            lastquotecol = i-1;
-        }
-        if (qoutecounter%2 != 0){ // if quote open
-            continue;
-        } else {
-            if (c == '/' && c_prev == '/'){
-                i = i - 2;
-                str[i] = '\0';
-                break;
-            }
-            c_prev = c;
-        }
-    }
-    if (qoutecounter%2 != 0){
-        printf("Error: no closing quotation mark (%ld,%ld)\n%s\n", linenum, lastquotecol, cpline);
-        for (size_t i = 0; i < lastquotecol; i++){
+    else if (c == '}')
+    {
+      struct Node *lastnode = pop(mystack);
+      if (lastnode != NULL)
+      {
+        if (lastnode->value != '{')
+        {
+          printf("error: no closing brace at (%ld, %ld)\n", linenum, i - 1);
+          printf("%s\n", str);
+          for (size_t j = 0; j < i-1; j++)
+          {
             printf(" ");
+          }
+          printf("^\n");
+          errfound++;
+        }
+      }
+      else
+      {
+        printf("error: no opening brace at (%ld, %ld)\n", linenum, i - 1);
+        printf("%s\n", str);
+        for (size_t j = 0; j < i-1; j++)
+        {
+          printf(" ");
         }
         printf("^\n");
-        errfound = 1;
+        errfound++;
+      }
     }
+  }
 }
-
-void checkparentesis(char* str, size_t linenum){
-    size_t i = 0;
-    char c;
-
-    while ((c = str[i++]) != '\0'){
-        if (c == '('){
-            parentesis_in_count++;
-            lastparentesis_in_loc = i;
-            strcpy(lastparentesisline, str);
-            lastparentesis_numline = linenum;
-        } else if (c == ')') {
-            parentesis_out_count++;
-            lastparentesis_out_loc = i;
-        }
-    }
-}
-
-void checkbrackets(char* str, size_t linenum){
-    size_t i = 0;
-    char c;
-
-    while ((c = str[i++]) != '\0'){
-        if (c == '['){
-            brackets_in_count++;
-            lastbracket_in_loc = i;
-            strcpy(lastbracketline, str);
-            lastbracket_numline = linenum;
-        } else if (c == ']') {
-            brackets_out_count++;
-            lastbracket_out_loc = i;
-        }
-    }
-}
-
-void checkbraces(char* str, size_t linenum){
-    size_t i = 0;
-    char c;
-
-    while ((c = str[i++]) != '\0'){
-        if (c == '{'){
-            braces_in_count++;
-            lastbrace_in_loc = i;
-            strcpy(lastbraceline, str);
-            lastbrace_numline = linenum;
-        } else if (c == '}') {
-            braces_out_count++;
-            lastbrace_out_loc = i;
-        }
-    }
-}
-
-/*
-void rmalphanumerics(char* str);
-void rmspaces(char* str);
-void rmsemicolon(char* str);
-
-void rmalphanumerics(char* str){
-    size_t i = 0;
-    size_t j = 0;
-    char c;
-
-    while ((c = str[i++]) != '\0'){
-        if (!isalnum(c)){
-            str[j++] = c;
-        }
-    }
-    str[j] = '\0';
-}
-
-void rmspaces(char* str){
-    size_t i = 0;
-    size_t j = 0;
-    char c;
-
-    while ((c = str[i++]) != '\0'){
-        if (!isspace(c)){
-            str[j++] = c;
-        }
-    }
-    str[j] = '\0';
-}
-
-void rmsemicolon(char* str){
-    size_t i = 0;
-    size_t j = 0;
-    char c;
-
-    while ((c = str[i++]) != '\0'){
-        if (c != ';'){
-            str[j++] = c;
-        }
-    }
-    str[j] = '\0';
-}
- */
